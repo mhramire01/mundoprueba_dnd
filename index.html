@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa de la Isla - Visualizador Interactivo</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; }
+    #viewer {
+      position: relative;
+      display: inline-block;
+      border: 3px solid #654321;
+    }
+    #viewer img {
+      max-width: 90vw;
+      height: auto;
+      cursor: crosshair;
+    }
+    .marker {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: red;
+      border-radius: 50%;
+      border: 2px solid white;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    #info {
+      margin-top: 1rem;
+      border: 1px solid #ccc;
+      background: #fdfdfd;
+      padding: 1rem;
+      width: 80%;
+      min-height: 60px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🗺️ Mapa de la Isla Interactivo</h2>
+  <div id="viewer">
+    <img src="https://i.postimg.cc/Y0bwB3xB/temp-Imagea-Yb1ce.avif" alt="Mapa de la isla" id="mapImage">
+  </div>
+  <div id="info">Haz clic en el mapa para colocar un marcador.</div>
+
+  <script>
+    const viewer = document.getElementById('viewer');
+    const info = document.getElementById('info');
+    const markers = [];
+
+    viewer.addEventListener('click', (e) => {
+      const rect = viewer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const marker = document.createElement('div');
+      marker.className = 'marker';
+      marker.style.left = `${x}px`;
+      marker.style.top = `${y}px`;
+
+      const comment = prompt("Escribe un comentario para este marcador:");
+      markers.push({ x, y, comment });
+
+      marker.addEventListener('click', (ev) => {
+        ev.stopPropagation(); // evita que cree otro marcador encima
+        info.innerText = comment;
+      });
+
+      viewer.appendChild(marker);
+    });
+  </script>
+</body>
+</html>
