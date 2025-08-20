@@ -1,162 +1,432 @@
-<!DOCTYPE html>
-<html lang="es">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mapa de la Isla - Visualizador Interactivo</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --panel: #111317;
-      --border: #2a2d34;
-      --text: #e9eaee;
-      --muted: #9aa1aa;
-      --accent: #6ab0ff;
-      --gap: 16px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100svh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-    }
-    header {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: linear-gradient(180deg, #0d0f13, #0a0a0a);
-    }
-    header h1 {
-      font-size: 18px;
-      margin: 0;
-      letter-spacing: .3px;
-      color: var(--text);
-    }
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .btn {
-      appearance: none;
-      border: 1px solid var(--border);
-      background: #171a20;
-      color: var(--text);
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform .05s ease, background .2s ease, border-color .2s ease;
-    }
-    .btn:hover { background: #1d222b; border-color: #3a3f48; }
-    .btn:active { transform: translateY(1px) scale(.98); }
-
-    .palette {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      background: #12151a;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-    .swatch {
-      width: 22px; height: 22px; border-radius: 6px;
-      border: 1px solid #00000055; cursor: pointer; outline: 2px solid transparent;
-      transition: transform .05s ease, outline-color .2s ease;
-    }
-    .swatch:active { transform: scale(.96); }
-    .swatch.selected { outline: 2px solid #ffffffaa; }
-
-    main {
-      padding: clamp(10px, 3vw, 24px);
-      display: grid;
-      grid-template-columns: 1fr min(34ch, 360px);
-      gap: var(--gap);
-      align-items: start;
-    }
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      #sidebar { order: 2; }
-      #stage   { order: 1; }
-    }
-
-    /* Escenario del mapa */
-    #stage {
-      position: relative;
-      background: #0e0f12;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden; /* usamos zoom con transform, sin scrollbars aquí */
-      box-shadow: 0 10px 30px rgba(0,0,0,.45);
-      max-width: 100%;
-      max-height: 78vh;
-      min-height: 320px;
-    }
-    .scaleLayer {
-      position: relative;
-      transform-origin: top left;
-      user-select: none;
-      -webkit-user-drag: none;
-    }
-    .mapImage { display: block; width: 100%; height: auto; pointer-events: none; }
-
-    /* Marcadores */
-    .marker { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
-    .marker-dot {
-      width: 18px; height: 18px; border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,.6);
-      transform-origin: center;
-      transition: box-shadow .2s ease, border-color .2s ease;
-    }
-    .marker.selected .marker-dot { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(106,176,255,.35); }
-
-    /* Tooltip opcional (hover) */
-    .tooltip { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); color: var(--text); padding: 6px 10px; border-radius: 6px; white-space: nowrap; font-size: 13px; pointer-events: none; opacity: 0; transition: opacity .2s ease; }
-    .marker:hover .tooltip { opacity: 1; }
-
-    /* Sidebar de comentarios */
-    #sidebar {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      max-height: 78vh;
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #sidebar h2 { font-size: 16px; margin: 0 0 8px; color: var(--text); }
-    .muted { color: var(--muted); font-size: 13px; }
-
-    .list { display: grid; gap: 6px; margin: 10px 0 12px; }
-    .item {
-      display: grid; grid-template-columns: 22px 1fr auto; align-items: center;
-      gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: #141820; cursor: pointer;
-    }
-    .item:hover { background: #171c25; }
-    .item .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
-    .item .coords { font-size: 12px; color: var(--muted); }
-    .item .id { font-size: 12px; opacity: .6; }
-    .item.selected { outline: 2px solid rgba(106,176,255,.4); }
-
-    form { display: grid; gap: 8px; }
-    label { font-size: 12px; color: var(--muted); }
-    textarea { width: 100%; min-height: 90px; resize: vertical; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: #0e1116; color: var(--text); font-family: inherit; font-size: 14px; }
-    .row { display: flex; gap: 8px; justify-content: flex-end; }
-
-    footer { color: var(--muted); font-size: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2575.7">
+  <style type="text/css">
+    body {background-color: #0a0a0a}
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #e4e5ea; -webkit-text-stroke: #e4e5ea; background-color: #0a0a0a}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'Helvetica Neue'; color: #e4e5ea; -webkit-text-stroke: #e4e5ea; background-color: #0a0a0a; min-height: 15.0px}
+    span.s1 {font-kerning: none}
   </style>
 </head>
 <body>
-  ... (contenido del body y scripts igual que el documento en canvas) ...
+<p class="p1"><span class="s1">&lt;!DOCTYPE html&gt;</span></p>
+<p class="p1"><span class="s1">&lt;html lang="es"&gt;</span></p>
+<p class="p1"><span class="s1">&lt;head&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;title&gt;Mapa de la Isla - Visualizador Interactivo&lt;/title&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;style&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>:root {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--bg: #0a0a0a;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--panel: #111317;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--border: #2a2d34;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--text: #e9eaee;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--muted: #9aa1aa;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--accent: #6ab0ff;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>--gap: 16px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>* { box-sizing: border-box; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>body {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>margin: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: var(--bg);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>color: var(--text);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>min-height: 100svh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: grid;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>grid-template-rows: auto 1fr auto;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>header {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 12px 16px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-bottom: 1px solid var(--border);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>align-items: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>justify-content: space-between;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: 12px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: linear-gradient(180deg, #0d0f13, #0a0a0a);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>header h1 {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>font-size: 18px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>margin: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>letter-spacing: .3px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>color: var(--text);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.toolbar {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>align-items: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: 10px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>flex-wrap: wrap;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.btn {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>appearance: none;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 1px solid var(--border);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: #171a20;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>color: var(--text);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 8px 12px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 10px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>font-weight: 600;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>cursor: pointer;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transition: transform .05s ease, background .2s ease, border-color .2s ease;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.btn:hover { background: #1d222b; border-color: #3a3f48; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.btn:active { transform: translateY(1px) scale(.98); }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.palette {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: inline-flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>align-items: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 6px 8px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: #12151a;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 1px solid var(--border);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 12px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.swatch {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>width: 22px; height: 22px; border-radius: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 1px solid #00000055; cursor: pointer; outline: 2px solid transparent;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transition: transform .05s ease, outline-color .2s ease;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.swatch:active { transform: scale(.96); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.swatch.selected { outline: 2px solid #ffffffaa; }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>main {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: clamp(10px, 3vw, 24px);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: grid;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>grid-template-columns: 1fr min(34ch, 360px);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: var(--gap);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>align-items: start;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>@media (max-width: 900px) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>main { grid-template-columns: 1fr; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>#sidebar { order: 2; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>#stage <span class="Apple-converted-space">  </span>{ order: 1; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>/* Escenario del mapa */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>#stage {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>position: relative;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: #0e0f12;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 1px solid var(--border);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 14px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>overflow: hidden; /* usamos zoom con transform, sin scrollbars aquí */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>box-shadow: 0 10px 30px rgba(0,0,0,.45);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>max-width: 100%;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>max-height: 78vh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>min-height: 320px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.scaleLayer {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>position: relative;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transform-origin: top left;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>user-select: none;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>-webkit-user-drag: none;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.mapImage { display: block; width: 100%; height: auto; pointer-events: none; }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>/* Marcadores */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.marker { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.marker-dot {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>width: 18px; height: 18px; border-radius: 50%;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 2px solid #fff;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>box-shadow: 0 2px 8px rgba(0,0,0,.6);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transform-origin: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transition: box-shadow .2s ease, border-color .2s ease;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.marker.selected .marker-dot { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(106,176,255,.35); }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>/* Tooltip opcional (hover) */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.tooltip { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); color: var(--text); padding: 6px 10px; border-radius: 6px; white-space: nowrap; font-size: 13px; pointer-events: none; opacity: 0; transition: opacity .2s ease; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.marker:hover .tooltip { opacity: 1; }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>/* Sidebar de comentarios */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>#sidebar {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: var(--panel);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: 1px solid var(--border);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 14px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 12px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>max-height: 78vh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>overflow: auto;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>-webkit-overflow-scrolling: touch;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>#sidebar h2 { font-size: 16px; margin: 0 0 8px; color: var(--text); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.muted { color: var(--muted); font-size: 13px; }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.list { display: grid; gap: 6px; margin: 10px 0 12px; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: grid; grid-template-columns: 22px 1fr auto; align-items: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: #141820; cursor: pointer;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item:hover { background: #171c25; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item .coords { font-size: 12px; color: var(--muted); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item .id { font-size: 12px; opacity: .6; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.item.selected { outline: 2px solid rgba(106,176,255,.4); }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>form { display: grid; gap: 8px; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>label { font-size: 12px; color: var(--muted); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>textarea { width: 100%; min-height: 90px; resize: vertical; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: #0e1116; color: var(--text); font-family: inherit; font-size: 14px; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.row { display: flex; gap: 8px; justify-content: flex-end; }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>footer { color: var(--muted); font-size: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/head&gt;</span></p>
+<p class="p1"><span class="s1">&lt;body&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;header&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;h1&gt;🗺️ Mapa de la Isla – Visualizador Interactivo&lt;/h1&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;div class="toolbar"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;button id="zoomOut" class="btn" title="Alejar"&gt;−&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;span id="zoomLabel" aria-live="polite" style="min-width:64px;text-align:center;opacity:.85"&gt;100%&lt;/span&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;button id="zoomIn" class="btn" title="Acercar"&gt;＋&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;button id="zoomReset" class="btn" title="Restablecer zoom"&gt;Reset&lt;/button&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;div class="palette" id="palette" aria-label="Selector de color"&gt;&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/header&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;main&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;!-- Escena del mapa --&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;div id="stage" role="application" aria-label="Mapa interactivo"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;div class="scaleLayer" id="scaleLayer"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;img src="https://i.postimg.cc/Y0bwB3xB/temp-Imagea-Yb1ce.avif" alt="Mapa de la isla" id="mapImage" class="mapImage" /&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;!-- Sidebar de comentarios / administración de marcadores --&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;aside id="sidebar"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;h2&gt;Marcadores&lt;/h2&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;p class="muted"&gt;Toca el mapa para crear uno nuevo. Selecciónalo para editar su comentario.&lt;/p&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;div id="markerList" class="list" aria-live="polite"&gt;&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;form id="commentForm"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;label for="commentInput"&gt;Comentario del marcador seleccionado&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;textarea id="commentInput" placeholder="Escribe aquí..."&gt;&lt;/textarea&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div class="row"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;button type="button" id="deleteBtn" class="btn" title="Eliminar marcador"&gt;Eliminar&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>&lt;button type="submit" class="btn" title="Guardar comentario"&gt;Guardar&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>&lt;/form&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/aside&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/main&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;footer&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>Click en el mapa para agregar marcador. Usa la paleta para elegir color. Zoom con ＋ / − / Reset.</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/footer&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;script&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const stage = document.getElementById('stage');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const scaleLayer = document.getElementById('scaleLayer');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const img = document.getElementById('mapImage');</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const zoomInBtn = document.getElementById('zoomIn');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const zoomOutBtn = document.getElementById('zoomOut');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const zoomResetBtn = document.getElementById('zoomReset');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const zoomLabel = document.getElementById('zoomLabel');</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const paletteEl = document.getElementById('palette');</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const sidebar = document.getElementById('sidebar');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const mainEl = document.querySelector('main');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const markerList = document.getElementById('markerList');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const commentForm = document.getElementById('commentForm');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const commentInput = document.getElementById('commentInput');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const deleteBtn = document.getElementById('deleteBtn');</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>let baseW = 0, baseH = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>let zoom = 1;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const ZOOM_MIN = 0.5, ZOOM_MAX = 3, ZOOM_STEP = 0.15;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const markers = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>let markerIdSeq = 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>let currentColor = '#ff0000';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>let selectedId = null;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function lerp(a,b,t){ return a + (b-a)*t; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function rgb(r,g,b){ return `rgb(${r|0},${g|0},${b|0})`; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function gradientColors(steps){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const colors = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const start = {r:255,g:0,b:0};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const end <span class="Apple-converted-space">  </span>= {r:0,g:200,b:0};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>for(let i=0;i&lt;steps;i++){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const t = i/(steps-1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>colors.push(rgb( lerp(start.r,end.r,t), lerp(start.g,end.g,t), lerp(start.b,end.b,t) ));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>return colors;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function buildPalette(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const colors = gradientColors(12);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>colors.forEach((c,idx)=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const sw = document.createElement('button');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>sw.className = 'swatch';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>sw.style.background = c;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>sw.title = `Color ${idx+1}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>sw.addEventListener('click',()=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>currentColor = c;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>document.querySelectorAll('.swatch').forEach(el=&gt;el.classList.remove('selected'));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>sw.classList.add('selected');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>if(idx===0) sw.classList.add('selected');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>paletteEl.appendChild(sw);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function updateZoomUI(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>zoomLabel.textContent = Math.round(zoom*100) + '%';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>scaleLayer.style.transform = `scale(${zoom})`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>document.querySelectorAll('.marker-dot').forEach(dot=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>dot.style.transform = `translateZ(0) scale(${1/zoom})`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>clampStageToViewport();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function clampStageToViewport(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const mainWidth = mainEl.clientWidth;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const sidebarWidth = sidebar ? sidebar.offsetWidth + parseFloat(getComputedStyle(mainEl).gap || 16) : 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const available = Math.max(240, mainWidth - sidebarWidth);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const maxW = Math.min(available, img.naturalWidth*zoom);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const maxH = Math.min(window.innerHeight*0.78, img.naturalHeight*zoom);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>stage.style.width = maxW + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>stage.style.height = maxH + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function limit(val,min,max){ return Math.max(min, Math.min(max,val)); }</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>zoomInBtn.addEventListener('click', ()=&gt;{ zoom = limit(zoom+ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>zoomOutBtn.addEventListener('click',()=&gt;{ zoom = limit(zoom-ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>zoomResetBtn.addEventListener('click',()=&gt;{ zoom = 1; updateZoomUI(); });</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function createMarker(xBase, yBase, color, comment){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const id = markerIdSeq++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const m = document.createElement('div');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.className = 'marker';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.style.left = xBase + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.style.top<span class="Apple-converted-space">  </span>= yBase + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.dataset.id = String(id);</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const dot = document.createElement('div');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>dot.className = 'marker-dot';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>dot.style.background = color;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>dot.style.transform = `translateZ(0) scale(${1/zoom})`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.appendChild(dot);</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(comment &amp;&amp; comment.trim() !== ""){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const tip = document.createElement('div');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>tip.className = 'tooltip';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>tip.textContent = comment;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>m.appendChild(tip);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>m.addEventListener('click', (ev)=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>ev.stopPropagation();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>selectMarker(id);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>scaleLayer.appendChild(m);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>markers.push({ id, x:xBase, y:yBase, color, comment: (comment||'').trim() });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>renderMarkerList();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>selectMarker(id);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function renderMarkerList(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>markerList.innerHTML = '';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(markers.length === 0){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No hay marcadores todavía.'; markerList.appendChild(p); return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>markers.forEach(m=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const item = document.createElement('div');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>item.className = 'item' + (m.id===selectedId ? ' selected' : '');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>item.dataset.id = String(m.id);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const dot = document.createElement('div'); dot.className = 'dot'; dot.style.background = m.color;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const info = document.createElement('div');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const title = document.createElement('div'); title.textContent = m.comment ? (m.comment.slice(0,40) + (m.comment.length&gt;40?'…':'')) : 'Sin comentario';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const coords = document.createElement('div'); coords.className = 'coords'; coords.textContent = `x:${Math.round(m.x)} y:${Math.round(m.y)}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>info.appendChild(title); info.appendChild(coords);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const idEl = document.createElement('div'); idEl.className = 'id'; idEl.textContent = `#${m.id}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>item.appendChild(dot); item.appendChild(info); item.appendChild(idEl);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>item.addEventListener('click', ()=&gt; selectMarker(m.id));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>markerList.appendChild(item);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function selectMarker(id){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>selectedId = id;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>document.querySelectorAll('.marker').forEach(el=&gt; el.classList.remove('selected'));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const markerEl = Array.from(document.querySelectorAll('.marker')).find(el =&gt; Number(el.dataset.id)===id);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(markerEl){ markerEl.classList.add('selected'); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const rec = markers.find(m =&gt; m.id===id);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(rec){ commentInput.value = rec.comment || ''; }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>renderMarkerList();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>commentForm.addEventListener('submit', (e)=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>e.preventDefault();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(selectedId==null) return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const rec = markers.find(m =&gt; m.id===selectedId);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(!rec) return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>rec.comment = (commentInput.value||'').trim();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>// actualizar tooltip (crear si no existe)</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const el = Array.from(document.querySelectorAll('.marker')).find(el =&gt; Number(el.dataset.id)===selectedId);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(el){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let tip = el.querySelector('.tooltip');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>if(!tip){ tip = document.createElement('div'); tip.className = 'tooltip'; el.appendChild(tip); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>tip.textContent = rec.comment || '';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>renderMarkerList();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>deleteBtn.addEventListener('click', ()=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(selectedId==null) return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const idx = markers.findIndex(m =&gt; m.id===selectedId);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(idx===-1) return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>// eliminar del DOM</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const el = Array.from(document.querySelectorAll('.marker')).find(el =&gt; Number(el.dataset.id)===selectedId);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(el &amp;&amp; el.parentNode){ el.parentNode.removeChild(el); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>markers.splice(idx,1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>selectedId = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>commentInput.value = '';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>renderMarkerList();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>stage.addEventListener('click', (e)=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>// crear marcador en coordenadas base, sin prompt; usar panel para editar</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const rect = stage.getBoundingClientRect();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const xView = e.clientX - rect.left;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const yView = e.clientY - rect.top;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const xBase = xView / zoom;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const yBase = yView / zoom;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>createMarker(xBase, yBase, currentColor, '');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>// foco al textarea para escribir de inmediato</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>setTimeout(()=&gt; commentInput.focus(), 0);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function initZoomButtons(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>function limit(val,min,max){ return Math.max(min, Math.min(max,val)); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>zoomInBtn.addEventListener('click', ()=&gt;{ zoom = limit(zoom+ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>zoomOutBtn.addEventListener('click',()=&gt;{ zoom = limit(zoom-ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>zoomResetBtn.addEventListener('click',()=&gt;{ zoom = 1; updateZoomUI(); });</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>function build(){</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>buildPalette();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>initZoomButtons();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if(img.complete) { img.dispatchEvent(new Event('load')); }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>img.addEventListener('load', ()=&gt;{</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>baseW = img.naturalWidth; baseH = img.naturalHeight;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>scaleLayer.style.width = baseW + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>scaleLayer.style.height = baseH + 'px';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>clampStageToViewport();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>updateZoomUI();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>window.addEventListener('resize', clampStageToViewport);</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>build();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/body&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
 </body>
 </html>
