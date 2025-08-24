@@ -1,414 +1,140 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mapa de la Isla - Visualizador Interactivo</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --panel: #111317;
-      --border: #2a2d34;
-      --text: #e9eaee;
-      --muted: #9aa1aa;
-      --accent: #6ab0ff;
-      --gap: 16px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100svh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-    }
-    header {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: linear-gradient(180deg, #0d0f13, #0a0a0a);
-    }
-    header h1 {
-      font-size: 18px;
-      margin: 0;
-      letter-spacing: .3px;
-      color: var(--text);
-    }
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .btn {
-      appearance: none;
-      border: 1px solid var(--border);
-      background: #171a20;
-      color: var(--text);
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform .05s ease, background .2s ease, border-color .2s ease;
-    }
-    .btn:hover { background: #1d222b; border-color: #3a3f48; }
-    .btn:active { transform: translateY(1px) scale(.98); }
-
-    .palette {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      background: #12151a;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-    .swatch {
-      width: 22px; height: 22px; border-radius: 6px;
-      border: 1px solid #00000055; cursor: pointer; outline: 2px solid transparent;
-      transition: transform .05s ease, outline-color .2s ease;
-    }
-    .swatch:active { transform: scale(.96); }
-    .swatch.selected { outline: 2px solid #ffffffaa; }
-
-    main {
-      padding: clamp(10px, 3vw, 24px);
-      display: grid;
-      grid-template-columns: 1fr min(34ch, 360px);
-      gap: var(--gap);
-      align-items: start;
-    }
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      #sidebar { order: 2; }
-      #stage   { order: 1; }
-    }
-
-    /* Escenario del mapa */
-    #stage {
-      position: relative;
-      background: #0e0f12;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden; /* usamos zoom con transform, sin scrollbars aquí */
-      box-shadow: 0 10px 30px rgba(0,0,0,.45);
-      max-width: 100%;
-      max-height: 78vh;
-      min-height: 320px;
-    }
-    .scaleLayer {
-      position: relative;
-      transform-origin: top left;
-      user-select: none;
-      -webkit-user-drag: none;
-    }
-    .mapImage { display: block; width: 100%; height: auto; pointer-events: none; }
-
-    /* Marcadores */
-    .marker { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
-    .marker-dot {
-      width: 18px; height: 18px; border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,.6);
-      transform-origin: center;
-      transition: box-shadow .2s ease, border-color .2s ease;
-    }
-    .marker.selected .marker-dot { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(106,176,255,.35); }
-
-    /* Tooltip opcional (hover) */
-    .tooltip { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); color: var(--text); padding: 6px 10px; border-radius: 6px; white-space: nowrap; font-size: 13px; pointer-events: none; opacity: 0; transition: opacity .2s ease; }
-    .marker:hover .tooltip { opacity: 1; }
-
-    /* Sidebar de comentarios */
-    #sidebar {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      max-height: 78vh;
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #sidebar h2 { font-size: 16px; margin: 0 0 8px; color: var(--text); }
-    .muted { color: var(--muted); font-size: 13px; }
-
-    .list { display: grid; gap: 6px; margin: 10px 0 12px; }
-    .item {
-      display: grid; grid-template-columns: 22px 1fr auto; align-items: center;
-      gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: #141820; cursor: pointer;
-    }
-    .item:hover { background: #171c25; }
-    .item .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
-    .item .coords { font-size: 12px; color: var(--muted); }
-    .item .id { font-size: 12px; opacity: .6; }
-    .item.selected { outline: 2px solid rgba(106,176,255,.4); }
-
-    form { display: grid; gap: 8px; }
-    label { font-size: 12px; color: var(--muted); }
-    textarea { width: 100%; min-height: 90px; resize: vertical; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: #0e1116; color: var(--text); font-family: inherit; font-size: 14px; }
-    .row { display: flex; gap: 8px; justify-content: flex-end; }
-
-    footer { color: var(--muted); font-size: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>🗺️ Mapa de la Isla – Visualizador Interactivo</h1>
-    <div class="toolbar">
-      <button id="zoomOut" class="btn" title="Alejar">−</button>
-      <span id="zoomLabel" aria-live="polite" style="min-width:64px;text-align:center;opacity:.85">100%</span>
-      <button id="zoomIn" class="btn" title="Acercar">＋</button>
-      <button id="zoomReset" class="btn" title="Restablecer zoom">Reset</button>
-
-      <div class="palette" id="palette" aria-label="Selector de color"></div>
-    </div>
-  </header>
-
-  <main>
-    <!-- Escena del mapa -->
-    <div id="stage" role="application" aria-label="Mapa interactivo">
-      <div class="scaleLayer" id="scaleLayer">
-        <img src="https://i.postimg.cc/Y0bwB3xB/temp-Imagea-Yb1ce.avif" alt="Mapa de la isla" id="mapImage" class="mapImage" />
-      </div>
-    </div>
-
-    <!-- Sidebar de comentarios / administración de marcadores -->
-    <aside id="sidebar">
-      <h2>Marcadores</h2>
-      <p class="muted">Toca el mapa para crear uno nuevo. Selecciónalo para editar su comentario.</p>
-      <div id="markerList" class="list" aria-live="polite"></div>
-
-      <form id="commentForm">
-        <label for="commentInput">Comentario del marcador seleccionado</label>
-        <textarea id="commentInput" placeholder="Escribe aquí..."></textarea>
-        <div class="row">
-          <button type="button" id="deleteBtn" class="btn" title="Eliminar marcador">Eliminar</button>
-          <button type="submit" class="btn" title="Guardar comentario">Guardar</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mapa de la Isla - Visualizador Interactivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="theme-color" content="#0a0a0a" />
+  </head>
+  <body
+    class="min-h-screen bg-zinc-950 text-zinc-100 grid grid-rows-[auto_1fr_auto] w-full"
+  >
+    <!-- Header -->
+    <header
+      class="w-full border-b border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 px-4 md:px-6 lg:px-8"
+    >
+      <div class="mx-auto w-full py-3 flex items-center justify-between gap-3">
+        <h1 class="text-base font-semibold tracking-wide">
+          🗺️ Mapa de la Isla – Visualizador Interactivo
+        </h1>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="zoomOut" class="btn-ghost" title="Alejar">−</button>
+          <span
+            id="zoomLabel"
+            aria-live="polite"
+            class="inline-flex min-w-16 justify-center text-sm opacity-85"
+            >100%</span
+          >
+          <button id="zoomIn" class="btn-ghost" title="Acercar">＋</button>
+          <button id="zoomReset" class="btn-ghost" title="Restablecer zoom">
+            Reset
+          </button>
         </div>
-      </form>
-    </aside>
-  </main>
+      </div>
+    </header>
 
-  <footer>
-    Click en el mapa para agregar marcador. Usa la paleta para elegir color. Zoom con ＋ / − / Reset.
-  </footer>
+    <!-- Main (apilado por defecto; 2 columnas solo en ≥lg) -->
+    <main
+      class="mx-auto w-full p-4 grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,1fr)_360px] items-start"
+    >
+      <!-- Mapa -->
+      <div
+        id="stage"
+        role="application"
+        aria-label="Mapa interactivo"
+        class="relative mx-auto w-full max-w-[70%] min-h-80 max-h-[95vh] overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-[0_10px_30px_rgba(0,0,0,.45)]"
+      >
+        <div
+          id="scaleLayer"
+          class="relative [transform-origin:top_left] select-none"
+        >
+          <img
+            id="mapImage"
+            alt="Mapa de la isla"
+            src="https://i.postimg.cc/Y0bwB3xB/temp-Imagea-Yb1ce.avif"
+            class="block w-full h-auto pointer-events-none object-contain"
+          />
+        </div>
+        <!-- Marcadores se inyectan aquí -->
+      </div>
 
-  <script>
-    const stage = document.getElementById('stage');
-    const scaleLayer = document.getElementById('scaleLayer');
-    const img = document.getElementById('mapImage');
+      <!-- Sidebar (debajo en móviles/tablets, a la derecha en desktop) -->
+      <aside
+        id="sidebar"
+        class="rounded-2xl border border-zinc-800 bg-neutral-900/80 p-3 max-h-[78vh] overflow-auto"
+      >
+        <h2 class="text-sm font-semibold">Puntos de interés</h2>
+        <p class="text-zinc-400 text-xs">
+          Selecciona un marcador en el mapa o desde la lista.
+        </p>
+        <div id="poiList" class="grid gap-1.5 my-3" aria-live="polite"></div>
 
-    const zoomInBtn = document.getElementById('zoomIn');
-    const zoomOutBtn = document.getElementById('zoomOut');
-    const zoomResetBtn = document.getElementById('zoomReset');
-    const zoomLabel = document.getElementById('zoomLabel');
+        <section id="poiDetail" class="hidden">
+          <div class="h-px w-full bg-zinc-800 my-3"></div>
+          <h3 id="detailName" class="text-base font-semibold"></h3>
+          <div class="mt-1 text-xs text-zinc-400" id="detailMeta"></div>
+          <div id="detailTags" class="mt-2 flex flex-wrap gap-1.5"></div>
+          <p
+            id="detailLong"
+            class="mt-3 text-sm leading-relaxed text-zinc-200"
+          ></p>
+        </section>
+      </aside>
+    </main>
 
-    const paletteEl = document.getElementById('palette');
+    <footer
+      class="border-t border-zinc-800 text-zinc-400 px-4 md:px-6 lg:px-8 py-3 text-xs"
+    >
+      En desktop: panel a la derecha. En tablets/móviles: panel debajo del mapa.
+      Usa ＋/−/Reset para el zoom.
+    </footer>
 
-    const sidebar = document.getElementById('sidebar');
-    const mainEl = document.querySelector('main');
-    const markerList = document.getElementById('markerList');
-    const commentForm = document.getElementById('commentForm');
-    const commentInput = document.getElementById('commentInput');
-    const deleteBtn = document.getElementById('deleteBtn');
-
-    let baseW = 0, baseH = 0;
-    let zoom = 1;
-    const ZOOM_MIN = 0.5, ZOOM_MAX = 3, ZOOM_STEP = 0.15;
-
-    const markers = [];
-    let markerIdSeq = 0;
-    let currentColor = '#ff0000';
-    let selectedId = null;
-
-    function lerp(a,b,t){ return a + (b-a)*t; }
-    function rgb(r,g,b){ return `rgb(${r|0},${g|0},${b|0})`; }
-    function gradientColors(steps){
-      const colors = [];
-      const start = {r:255,g:0,b:0};
-      const end   = {r:0,g:200,b:0};
-      for(let i=0;i<steps;i++){
-        const t = i/(steps-1);
-        colors.push(rgb( lerp(start.r,end.r,t), lerp(start.g,end.g,t), lerp(start.b,end.b,t) ));
+    <style>
+      .btn-ghost {
+        @apply inline-flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-semibold transition
+               hover:bg-zinc-800/80 hover:border-zinc-700 active:translate-y-px active:scale-[.98];
       }
-      return colors;
-    }
-
-    function buildPalette(){
-      const colors = gradientColors(12);
-      colors.forEach((c,idx)=>{
-        const sw = document.createElement('button');
-        sw.className = 'swatch';
-        sw.style.background = c;
-        sw.title = `Color ${idx+1}`;
-        sw.addEventListener('click',()=>{
-          currentColor = c;
-          document.querySelectorAll('.swatch').forEach(el=>el.classList.remove('selected'));
-          sw.classList.add('selected');
-        });
-        if(idx===0) sw.classList.add('selected');
-        paletteEl.appendChild(sw);
-      });
-    }
-
-    function updateZoomUI(){
-      zoomLabel.textContent = Math.round(zoom*100) + '%';
-      scaleLayer.style.transform = `scale(${zoom})`;
-      document.querySelectorAll('.marker-dot').forEach(dot=>{
-        dot.style.transform = `translateZ(0) scale(${1/zoom})`;
-      });
-      clampStageToViewport();
-    }
-
-    function clampStageToViewport(){
-      const mainWidth = mainEl.clientWidth;
-      const sidebarWidth = sidebar ? sidebar.offsetWidth + parseFloat(getComputedStyle(mainEl).gap || 16) : 0;
-      const available = Math.max(240, mainWidth - sidebarWidth);
-      const maxW = Math.min(available, img.naturalWidth*zoom);
-      const maxH = Math.min(window.innerHeight*0.78, img.naturalHeight*zoom);
-      stage.style.width = maxW + 'px';
-      stage.style.height = maxH + 'px';
-    }
-
-    function limit(val,min,max){ return Math.max(min, Math.min(max,val)); }
-
-    zoomInBtn.addEventListener('click', ()=>{ zoom = limit(zoom+ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });
-    zoomOutBtn.addEventListener('click',()=>{ zoom = limit(zoom-ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });
-    zoomResetBtn.addEventListener('click',()=>{ zoom = 1; updateZoomUI(); });
-
-    function createMarker(xBase, yBase, color, comment){
-      const id = markerIdSeq++;
-      const m = document.createElement('div');
-      m.className = 'marker';
-      m.style.left = xBase + 'px';
-      m.style.top  = yBase + 'px';
-      m.dataset.id = String(id);
-
-      const dot = document.createElement('div');
-      dot.className = 'marker-dot';
-      dot.style.background = color;
-      dot.style.transform = `translateZ(0) scale(${1/zoom})`;
-      m.appendChild(dot);
-
-      if(comment && comment.trim() !== ""){
-        const tip = document.createElement('div');
-        tip.className = 'tooltip';
-        tip.textContent = comment;
-        m.appendChild(tip);
+      .marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform: translate(-50%, -50%);
       }
-
-      m.addEventListener('click', (ev)=>{
-        ev.stopPropagation();
-        selectMarker(id);
-      });
-
-      scaleLayer.appendChild(m);
-      markers.push({ id, x:xBase, y:yBase, color, comment: (comment||'').trim() });
-      renderMarkerList();
-      selectMarker(id);
-    }
-
-    function renderMarkerList(){
-      markerList.innerHTML = '';
-      if(markers.length === 0){
-        const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'No hay marcadores todavía.'; markerList.appendChild(p); return;
+      .marker .marker-dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 9999px;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+        transform-origin: center;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
       }
-      markers.forEach(m=>{
-        const item = document.createElement('div');
-        item.className = 'item' + (m.id===selectedId ? ' selected' : '');
-        item.dataset.id = String(m.id);
-        const dot = document.createElement('div'); dot.className = 'dot'; dot.style.background = m.color;
-        const info = document.createElement('div');
-        const title = document.createElement('div'); title.textContent = m.comment ? (m.comment.slice(0,40) + (m.comment.length>40?'…':'')) : 'Sin comentario';
-        const coords = document.createElement('div'); coords.className = 'coords'; coords.textContent = `x:${Math.round(m.x)} y:${Math.round(m.y)}`;
-        info.appendChild(title); info.appendChild(coords);
-        const idEl = document.createElement('div'); idEl.className = 'id'; idEl.textContent = `#${m.id}`;
-        item.appendChild(dot); item.appendChild(info); item.appendChild(idEl);
-        item.addEventListener('click', ()=> selectMarker(m.id));
-        markerList.appendChild(item);
-      });
-    }
-
-    function selectMarker(id){
-      selectedId = id;
-      document.querySelectorAll('.marker').forEach(el=> el.classList.remove('selected'));
-      const markerEl = Array.from(document.querySelectorAll('.marker')).find(el => Number(el.dataset.id)===id);
-      if(markerEl){ markerEl.classList.add('selected'); }
-      const rec = markers.find(m => m.id===id);
-      if(rec){ commentInput.value = rec.comment || ''; }
-      renderMarkerList();
-    }
-
-    commentForm.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      if(selectedId==null) return;
-      const rec = markers.find(m => m.id===selectedId);
-      if(!rec) return;
-      rec.comment = (commentInput.value||'').trim();
-      // actualizar tooltip (crear si no existe)
-      const el = Array.from(document.querySelectorAll('.marker')).find(el => Number(el.dataset.id)===selectedId);
-      if(el){
-        let tip = el.querySelector('.tooltip');
-        if(!tip){ tip = document.createElement('div'); tip.className = 'tooltip'; el.appendChild(tip); }
-        tip.textContent = rec.comment || '';
+      .marker.selected .marker-dot {
+        border-color: rgb(56 189 248);
+        box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.2);
       }
-      renderMarkerList();
-    });
+      .tooltip {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.92);
+        color: #e9eaee;
+        padding: 6px 10px;
+        border-radius: 6px;
+        white-space: nowrap;
+        font-size: 13px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+      .marker:hover .tooltip {
+        opacity: 1;
+      }
+    </style>
 
-    deleteBtn.addEventListener('click', ()=>{
-      if(selectedId==null) return;
-      const idx = markers.findIndex(m => m.id===selectedId);
-      if(idx===-1) return;
-      // eliminar del DOM
-      const el = Array.from(document.querySelectorAll('.marker')).find(el => Number(el.dataset.id)===selectedId);
-      if(el && el.parentNode){ el.parentNode.removeChild(el); }
-      markers.splice(idx,1);
-      selectedId = null;
-      commentInput.value = '';
-      renderMarkerList();
-    });
-
-    stage.addEventListener('click', (e)=>{
-      // crear marcador en coordenadas base, sin prompt; usar panel para editar
-      const rect = stage.getBoundingClientRect();
-      const xView = e.clientX - rect.left;
-      const yView = e.clientY - rect.top;
-      const xBase = xView / zoom;
-      const yBase = yView / zoom;
-      createMarker(xBase, yBase, currentColor, '');
-      // foco al textarea para escribir de inmediato
-      setTimeout(()=> commentInput.focus(), 0);
-    });
-
-    function initZoomButtons(){
-      function limit(val,min,max){ return Math.max(min, Math.min(max,val)); }
-      zoomInBtn.addEventListener('click', ()=>{ zoom = limit(zoom+ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });
-      zoomOutBtn.addEventListener('click',()=>{ zoom = limit(zoom-ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoomUI(); });
-      zoomResetBtn.addEventListener('click',()=>{ zoom = 1; updateZoomUI(); });
-    }
-
-    function build(){
-      buildPalette();
-      initZoomButtons();
-      if(img.complete) { img.dispatchEvent(new Event('load')); }
-    }
-
-    img.addEventListener('load', ()=>{
-      baseW = img.naturalWidth; baseH = img.naturalHeight;
-      scaleLayer.style.width = baseW + 'px';
-      scaleLayer.style.height = baseH + 'px';
-      clampStageToViewport();
-      updateZoomUI();
-    });
-
-    window.addEventListener('resize', clampStageToViewport);
-
-    build();
-  </script>
-</body>
+    <!-- Tu JS separado -->
+    <script src="script.js"></script>
+  </body>
 </html>
